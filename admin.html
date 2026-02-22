@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Admin - Manage Questions</title>
+    <style>
+        * { margin:0; padding:0; box-sizing:border-box; font-family:sans-serif; }
+        body { background:#2c3e50; color:white; padding:40px; text-align:center; }
+        .box { background:rgba(255,255,255,0.1); padding:20px; border-radius:15px; max-width:500px; margin:auto; }
+        input { width:90%; padding:10px; margin:10px; border-radius:5px; border:none; }
+        button { padding:10px 20px; border-radius:20px; border:none; cursor:pointer; font-weight:bold; }
+        .q-list { text-align:left; max-width:600px; margin:20px auto; background:white; color:#333; padding:20px; border-radius:10px; }
+    </style>
+</head>
+<body>
+
+    <h1>⚙️ Admin Dashboard</h1>
+    <div class="box">
+        <input type="text" id="q" placeholder="Question (e.g. What is <div>?)">
+        <input type="text" id="o1" placeholder="Option 1">
+        <input type="text" id="o2" placeholder="Option 2">
+        <select id="c" style="padding:10px; width:90%; margin:10px;">
+            <option value="0">Option 1 is Correct</option>
+            <option value="1">Option 2 is Correct</option>
+        </select>
+        <br>
+        <button onclick="add()" style="background:#2ecc71; color:white;">Add Question</button>
+        <button onclick="localStorage.removeItem('adminQuestions'); location.reload();" style="background:#e74c3c; color:white;">Reset All</button>
+    </div>
+
+    <div id="list" class="q-list"></div>
+    <br>
+    <a href="index.html" style="color:white;">Logout & Back to Home</a>
+
+    <script>
+        // Security: Check if admin is authorized
+        // Note: This is simple browser security. 
+        
+        function add() {
+            let question = document.getElementById("q").value;
+            let option1 = document.getElementById("o1").value;
+            let option2 = document.getElementById("o2").value;
+            let correct = document.getElementById("c").value;
+
+            if(!question || !option1) return alert("Fill all fields");
+
+            let adminQs = JSON.parse(localStorage.getItem("adminQuestions")) || [];
+            adminQs.push({question, option1, option2, correct});
+            localStorage.setItem("adminQuestions", JSON.stringify(adminQs));
+            location.reload();
+        }
+
+        function load() {
+            let adminQs = JSON.parse(localStorage.getItem("adminQuestions")) || [];
+            let html = "<h3>Your Added Questions:</h3>";
+            adminQs.forEach((q, i) => {
+                html += `<p>${i+1}. ${q.question.replace(/</g, "&lt;")} <br> <small>Correct: ${q.correct=="0"?q.option1:q.option2}</small></p><hr>`;
+            });
+            document.getElementById("list").innerHTML = html;
+        }
+        load();
+    </script>
+</body>
+</html>

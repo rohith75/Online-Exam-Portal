@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Online Exam System</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', sans-serif; }
+        body { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); min-height: 100vh; text-align: center; color: white; padding: 40px 20px; }
+        #exam { background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(15px); padding: 40px; border-radius: 20px; width: 90%; max-width: 700px; margin: 30px auto; box-shadow: 0 15px 35px rgba(0,0,0,0.3); }
+        input { padding: 15px; margin: 10px; border: none; border-radius: 10px; width: 280px; }
+        button { padding: 12px 25px; margin: 10px; border: none; border-radius: 30px; background: white; color: #667eea; font-weight: bold; cursor: pointer; }
+        #timer { font-size: 24px; color: #ffd700; margin-bottom: 15px; font-weight: bold; }
+        .option-label { display: block; padding: 15px; margin: 10px 0; background: rgba(255,255,255,0.2); border-radius: 10px; cursor: pointer; text-align: left; transition: 0.3s; }
+        .option-label:hover { background: rgba(255,255,255,0.3); }
+        .score-circle { width: 100px; height: 100px; border-radius: 50%; background: #ffd700; color: #333; display: flex; align-items: center; justify-content: center; font-size: 30px; font-weight: bold; margin: 20px auto; }
+        .review-item { text-align: left; background: rgba(255,255,255,0.1); padding: 10px; margin: 10px 0; border-radius: 10px; border-left: 5px solid white; }
+        #adminSecret { cursor: default; user-select: none; }
+    </style>
+</head>
+<body>
+
+    <h1 id="adminSecret" onclick="checkAdminAccess()">🎓 Online Examination System</h1>
+    <p>Powered by Smart Exam Portal</p>
+
+    <div id="login">
+        <br><br>
+        <input type="text" id="studentName" placeholder="Enter Your Full Name">
+        <br>
+        <button onclick="startExam()">Start Exam</button>
+    </div>
+
+    <div id="exam" style="display:none;">
+        <div id="timer">⏱️ Time Left: 00:00</div>
+        <div id="qCounter" style="font-size: 14px; opacity: 0.8;"></div>
+        <h3 id="questionText" style="font-size: 22px; margin: 20px 0;"></h3>
+        <div id="options"></div>
+        <br>
+        <button onclick="previousQuestion()">⬅ Previous</button>
+        <button onclick="nextQuestion()">Next ➡</button>
+    </div>
+
+    <div id="result" style="display:none; max-width:700px; margin:auto; background:rgba(255,255,255,0.1); padding:30px; border-radius:20px;"></div>
+
+    <script>
+        // --- 1. DEFAULT QUESTIONS (Fixed HTML entities) ---
+        const defaultQuestions = [
+            { question: "Which tag is used to create a form?", option1: "<form>", option2: "<input>", correct: "0" },
+            { question: "Which attribute opens a link in a new tab?", option1: 'target="_blank"', option2: 'href="_blank"', correct: "0" },
+            { question: "Which tag is used for navigation menus?", option1: "<nav>", option2: "<menu>", correct: "0" },
+            { question: "Which tag is used for inserting videos?", option1: "<video>", option2: "<media>", correct: "0" },
+            { question: "Which keyword declares a constant?", option1: "const", option2: "var", correct: "0" },
+            { question: "Which method converts JSON to object?", option1: "JSON.parse()", option2: "JSON.stringify()", correct: "0" }
+        ];
+
+        let questions = [];
+        let currentQuestion = 0;
+        let score = 0;
+        let userAnswers = [];
+        let studentName = "";
+        let timerInterval;
+        let timeLeft = 0;
+        let clickCount = 0;
+
+        // --- 2. ADMIN ACCESS (SECRET) ---
+        function checkAdminAccess() {
+            clickCount++;
+            if (clickCount >= 5) {
+                let pass = prompt("Enter Admin Password:");
+                if (pass === "admin123") { // CHANGE PASSWORD HERE
+                    window.location.href = "admin.html";
+                } else {
+                    alert("Wrong Password!");
+                    clickCount = 0;
+                }
+            }
+        }
+
+        // --- 3. EXAM LOGIC ---
+        function startExam() {
+            studentName = document.getElementById("studentName").value.trim();
+            if (!studentName) { alert("Please enter your name"); return; }
+            
+            let adminQs = JSON.parse(localStorage.getItem("adminQuestions")) || [];
+            questions = [...defaultQuestions, ...adminQs];
+            
+            timeLeft = questions.length * 30;
+            document.getElementById("login").style.display = "none";
+            document.getElementById("exam").style.display = "block";
+            
+            loadQuestion();
+            startTimer();
+        }
+
+        function loadQuestion() {
+            let q = questions[currentQuestion];
+            document.getElementById("qCounter").innerText = `Question ${currentQuestion + 1} of ${questions.length}`;
+            
+            // FIXED: Using textContent so tags like <video> show up as text
+            document.getElementById("questionText").textContent = q.question;
+            
+            let optionsDiv = document.getElementById("options");
+            optionsDiv.innerHTML = ""; // Clear
+            
+            [q.option1, q.option2].forEach((opt, i) => {
+                let label = document.createElement("label");
+                label.className = "option-label";
+                
+                let radio = document.createElement("input");
+                radio.type = "radio";
+                radio.name = "opt";
+                radio.value = i;
+                if(userAnswers[currentQuestion] == i) radio.checked = true;
+                
+                let span = document.createElement("span");
+                span.textContent = " " + opt; // FIXED: textContent for options too
+                
+                label.appendChild(radio);
+                label.appendChild(span);
+                optionsDiv.appendChild(label);
+            });
+        }
+
+        function nextQuestion() {
+            let sel = document.querySelector("input[name='opt']:checked");
+            if (sel) userAnswers[currentQuestion] = sel.value;
+            
+            if (currentQuestion < questions.length - 1) {
+                currentQuestion++;
+                loadQuestion();
+            } else {
+                showResult();
+            }
+        }
+
+        function previousQuestion() {
+            if (currentQuestion > 0) {
+                currentQuestion--;
+                loadQuestion();
+            }
+        }
+
+        function startTimer() {
+            timerInterval = setInterval(() => {
+                let min = Math.floor(timeLeft / 60);
+                let sec = timeLeft % 60;
+                document.getElementById("timer").innerText = `⏱️ Time Left: ${min}:${sec < 10 ? '0'+sec : sec}`;
+                if (timeLeft <= 0) { clearInterval(timerInterval); showResult(); }
+                timeLeft--;
+            }, 1000);
+        }
+
+        function showResult() {
+            clearInterval(timerInterval);
+            score = 0;
+            questions.forEach((q, i) => { if (userAnswers[i] == q.correct) score++; });
+            let per = Math.round((score/questions.length)*100);
+            
+            document.getElementById("exam").style.display = "none";
+            let resDiv = document.getElementById("result");
+            resDiv.style.display = "block";
+            resDiv.innerHTML = `
+                <h2>Exam Finished!</h2>
+                <div class="score-circle">${per}%</div>
+                <p>${studentName}, you scored ${score} out of ${questions.length}</p>
+                <button onclick="downloadPDF()">Download PDF</button>
+                <button onclick="location.reload()">Restart</button>
+                <div id="review"></div>
+            `;
+            
+            let revHTML = "<h3>Review:</h3>";
+            questions.forEach((q, i) => {
+                let isCorrect = userAnswers[i] == q.correct;
+                revHTML += `<div class="review-item" style="border-color:${isCorrect?'#2ecc71':'#e74c3c'}">
+                    <b>Q${i+1}: ${q.question.replace(/</g, "&lt;")}</b><br>
+                    Correct: ${q.correct=="0"?q.option1:q.option2} | Yours: ${userAnswers[i]==undefined?"N/A":(userAnswers[i]=="0"?q.option1:q.option2)}
+                </div>`;
+            });
+            document.getElementById("review").innerHTML = revHTML;
+        }
+
+        function downloadPDF() {
+            const { jsPDF } = window.jspdf;
+            const doc = new jsPDF();
+            doc.text(`Exam Result: ${studentName}`, 20, 20);
+            doc.text(`Score: ${score}/${questions.length}`, 20, 30);
+            doc.save("Result.pdf");
+        }
+    </script>
+</body>
+</html>
